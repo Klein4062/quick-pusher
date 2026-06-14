@@ -36,97 +36,141 @@ EXAMPLE_CONFIG = """\
 """
 
 PROG_DESCRIPTION = (
-    "Multi-repo sync commit & push. Stage every discovered repo, commit each "
-    "with the SAME message, and push. Alternative commands: "
-    "`qpush status` (overview), `qpush scan` (list repos), `qpush init` (write config)."
+    "多仓库同步提交与推送。对每个发现的仓库执行暂存,用【同一条】信息分别提交,再推送。\n"
+    "其它子命令:`qpush status`(总览)、`qpush scan`(列出仓库)、"
+    "`qpush init`(写配置)、`qpush pull`(拉取)、`qpush exec`(执行命令)。"
 )
+
+
+# --- 中文本地化的 argparse ---------------------------------------------------
+
+class _CnFormatter(argparse.HelpFormatter):
+    """把 argparse 帮助输出中的 usage:/分组标题本地化为中文。"""
+
+    _HEADINGS = {
+        "positional arguments": "位置参数",
+        "optional arguments": "可选参数",  # Python 3.9
+        "options": "选项",                # Python 3.10+
+    }
+
+    def add_usage(self, usage, actions, groups, prefix=None):
+        if prefix is None:
+            prefix = "用法:"
+        return super().add_usage(usage, actions, groups, prefix)
+
+    def start_section(self, heading):
+        super().start_section(self._HEADINGS.get(heading, heading))
+
+
+class _CnParser(argparse.ArgumentParser):
+    """使用中文 formatter,并把非法输入时的 'error:' 改为 '错误:'。"""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("formatter_class", _CnFormatter)
+        super().__init__(*args, **kwargs)
+
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(2, f"{self.prog}:错误:{message}\n")
+
+
+def _new_parser(prog: str, description: str) -> _CnParser:
+    return _CnParser(prog=prog, description=description, add_help=False)
+
+
+def _add_help(p: argparse.ArgumentParser) -> None:
+    p.add_argument("-h", "--help", action="help", help="显示此帮助信息并退出")
 
 
 # --- 参数解析 -----------------------------------------------------------------
 
 def _add_common(p: argparse.ArgumentParser) -> None:
     """所有子命令共享的选项(仓库发现 + 输出)。"""
-    p.add_argument("--config", metavar="PATH", help="path to a qpush config file")
+    p.add_argument("--config", metavar="PATH", help="qpush 配置文件路径")
     p.add_argument("--repos", action="append", metavar="PATH", default=[],
-                   help="explicit repository path (repeatable)")
+                   help="显式指定的仓库路径(可重复)")
     p.add_argument("--scan", action="append", metavar="DIR", default=[],
-                   help="directory to scan for git repos (repeatable)")
-    p.add_argument("--scan-depth", type=int, default=3, help="max scan depth (default 3)")
-    p.add_argument("--remote", default="origin", help="default remote name (default origin)")
-    p.add_argument("--branch", help="branch to push (default: current branch)")
+                   help="要扫描 git 仓库的目录(可重复)")
+    p.add_argument("--scan-depth", type=int, default=3, help="最大扫描深度(默认 3)")
+    p.add_argument("--remote", default="origin", help="默认远端名(默认 origin)")
+    p.add_argument("--branch", help="要推送的分支(默认:当前分支)")
     p.add_argument("--only", action="append", default=[], metavar="GLOB",
-                   help="only include repos whose name/path matches (repeatable)")
+                   help="只处理名称/路径匹配的仓库(可重复)")
     p.add_argument("--ignore", action="append", default=[], metavar="GLOB",
-                   help="exclude repos whose name/path matches (repeatable)")
-    p.add_argument("-j", "--parallel", type=int, default=4, help="max concurrent repos (default 4)")
+                   help="排除名称/路径匹配的仓库(可重复)")
+    p.add_argument("-j", "--parallel", type=int, default=4, help="最大并发仓库数(默认 4)")
     p.add_argument("--color", choices=["auto", "always", "never"], default="auto",
-                   help="color output (default auto)")
+                   help="是否启用彩色输出(默认 auto)")
     p.add_argument("-v", "--verbose", action="store_true",
-                   help="show per-repo detail for all repos")
+                   help="显示每个仓库的详细日志")
 
 
 def build_push_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="qpush", description=PROG_DESCRIPTION)
+    p = _new_parser("qpush", PROG_DESCRIPTION)
+    p.add_argument("--version", action="version", version=f"qpush {__version__}",
+                   help="显示版本号并退出")
     _add_common(p)
-    p.add_argument("--version", action="version", version=f"qpush {__version__}")
-    p.add_argument("message", nargs="?", help="commit message")
+    p.add_argument("message", nargs="?", help="提交信息")
     p.add_argument("-m", "--message", action="append", dest="message_flags", metavar="MSG",
-                   help="commit message (repeatable; joined as paragraphs)")
+                   help="提交信息(可重复;按段落拼接)")
     p.add_argument("--no-add", dest="add", action="store_false",
-                   help="don't stage changes (staging is on by default)")
+                   help="不暂存改动(默认会暂存)")
     p.add_argument("--no-commit", dest="commit", action="store_false",
-                   help="don't commit (committing is on by default)")
+                   help="不提交(默认会提交)")
     p.add_argument("--no-push", dest="push", action="store_false",
-                   help="don't push (pushing is on by default)")
-    p.add_argument("--force", action="store_true", help="force push with lease (use with care)")
-    p.add_argument("--tags", action="store_true", help="also push tags")
+                   help="不推送(默认会推送)")
+    p.add_argument("--force", action="store_true", help="带租约强制推送(--force-with-lease,谨慎使用)")
+    p.add_argument("--tags", action="store_true", help="同时推送标签")
     p.add_argument("--dry-run", action="store_true",
-                   help="show what would happen without modifying anything")
+                   help="只演示会发生什么,不做任何修改")
     p.set_defaults(add=True, commit=True, push=True)
+    _add_help(p)
     return p
 
 
 def build_status_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="qpush status",
-                                description="Show branch / dirty / ahead-behind for each repo.")
+    p = _new_parser("qpush status",
+                    description="查看每个仓库的分支 / 是否有改动 / 领先落后情况。")
     _add_common(p)
+    _add_help(p)
     return p
 
 
 def build_scan_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="qpush scan",
-                                description="List the repositories qpush would operate on.")
+    p = _new_parser("qpush scan",
+                    description="列出 qpush 会操作的仓库。")
     _add_common(p)
+    _add_help(p)
     return p
 
 
 def build_pull_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="qpush pull",
-        description="Fetch and integrate remote changes in every repo (rebase by default).",
-    )
+    p = _new_parser("qpush pull",
+                    description="在每个仓库中拉取并合并远端更新(默认 rebase)。")
     _add_common(p)
     mode = p.add_mutually_exclusive_group()
     mode.add_argument("--rebase", dest="rebase", action="store_true",
-                      help="rebase local commits on top of the remote (default)")
+                      help="把本地提交 rebase 到远端之上(默认)")
     mode.add_argument("--merge", dest="rebase", action="store_false",
-                      help="merge the remote instead of rebasing")
+                      help="用 merge 代替 rebase")
     mode.add_argument("--ff-only", dest="ff_only", action="store_true",
-                      help="only fast-forward; fail if not possible")
-    p.add_argument("--prune", action="store_true", help="prune deleted remote branches")
-    p.add_argument("--dry-run", action="store_true", help="show what would be pulled, change nothing")
+                      help="只允许快进,否则失败")
+    p.add_argument("--prune", action="store_true", help="同时清理已删除的远端分支")
+    p.add_argument("--dry-run", action="store_true", help="只演示会拉取什么,不做修改")
     p.set_defaults(rebase=True, ff_only=False)
+    _add_help(p)
     return p
 
 
 def build_exec_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="qpush exec",
-        description=("Run a shell command in each repo's root. "
-                     "Put the command after `--`, e.g. `qpush exec -- npm test`."),
+    p = _new_parser(
+        "qpush exec",
+        description=("在每个仓库根目录执行一条 shell 命令。"
+                     "命令放在 `--` 之后,例如 `qpush exec -- npm test`。"),
     )
     _add_common(p)
-    p.add_argument("--dry-run", action="store_true", help="show the command, run nothing")
+    p.add_argument("--dry-run", action="store_true", help="只显示命令,不执行")
+    _add_help(p)
     return p
 
 
@@ -152,7 +196,7 @@ def _discovery_args(args) -> config.DiscoveryArgs:
 # --- 子命令 -------------------------------------------------------------------
 
 def cmd_scan(repos: List[Repo]) -> int:
-    ui.print_header(f"discovered {len(repos)} repo{'s' if len(repos) != 1 else ''}")
+    ui.print_header(f"发现 {len(repos)} 个仓库")
     name_w = max((len(r.name) for r in repos), default=8)
     for repo in repos:
         print(f"  {repo.name:<{name_w}}  {repo.path}")
@@ -162,11 +206,11 @@ def cmd_scan(repos: List[Repo]) -> int:
 def cmd_init() -> int:
     target = os.path.join(os.getcwd(), ".qpush.json")
     if os.path.exists(target):
-        print(f"{target} already exists; leaving it untouched.", file=sys.stderr)
+        print(f"{target} 已存在,保持不变。", file=sys.stderr)
         return 1
     with open(target, "w", encoding="utf-8") as fh:
         fh.write(EXAMPLE_CONFIG)
-    print(f"wrote example config to {target}")
+    print(f"已写入示例配置:{target}")
     return 0
 
 
@@ -181,10 +225,9 @@ def cmd_status(repos: List[Repo]) -> int:
 
 
 def cmd_push(repos: List[Repo], opts: Options) -> int:
-    label = "DRY RUN — " if opts.dry_run else ""
+    label = "预演 —— " if opts.dry_run else ""
     ui.print_header(
-        f"{label}processing {len(repos)} repo{'s' if len(repos) != 1 else ''}  "
-        + ui.dim(f"message={opts.message!r}")
+        f"{label}处理 {len(repos)} 个仓库  " + ui.dim(f"信息={opts.message!r}")
     )
     results = _run_parallel(repos, lambda r: engine.process_repo(r, opts), parallel=opts.parallel)
     ui.print_summary(results, verbose=opts.verbose)
@@ -199,8 +242,8 @@ def cmd_pull(repos: List[Repo], args) -> int:
         remote=args.remote, branch=args.branch, dry_run=args.dry_run,
         parallel=max(1, args.parallel), verbose=args.verbose,
     )
-    label = "DRY RUN — " if opts.dry_run else ""
-    ui.print_header(f"{label}pulling {len(repos)} repo{'s' if len(repos) != 1 else ''}")
+    label = "预演 —— " if opts.dry_run else ""
+    ui.print_header(f"{label}拉取 {len(repos)} 个仓库")
     results = _run_parallel(repos, lambda r: engine.process_pull(r, opts), parallel=opts.parallel)
     ui.print_summary(results, verbose=opts.verbose)
     failed = sum(1 for r in results if r.overall.value == "failed")
@@ -211,8 +254,8 @@ def cmd_exec(repos: List[Repo], cmd: str, args) -> int:
     from .models import ExecOptions
     opts = ExecOptions(cmd=cmd, dry_run=args.dry_run,
                        parallel=max(1, args.parallel), verbose=args.verbose)
-    label = "DRY RUN — " if opts.dry_run else ""
-    ui.print_header(f"{label}exec [{len(repos)} repo{'s' if len(repos) != 1 else ''}]: {opts.cmd}")
+    label = "预演 —— " if opts.dry_run else ""
+    ui.print_header(f"{label}exec [{len(repos)} 个仓库]: {opts.cmd}")
     results = _run_parallel(repos, lambda r: engine.process_exec(r, opts), parallel=opts.parallel)
     ui.print_summary(results, verbose=opts.verbose)
     failed = sum(1 for r in results if r.overall.value == "failed")
@@ -228,7 +271,7 @@ def _run_parallel(repos: List[Repo], worker, parallel: int, show_progress: bool 
         try:
             return worker(repo)
         except Exception as exc:  # 不让单个仓库拖垮整批任务
-            res = RepoResult(repo=repo, error=f"unexpected error: {exc}")
+            res = RepoResult(repo=repo, error=f"意外错误:{exc}")
             res.log.append(("error", str(exc)))
             return res
 
@@ -243,10 +286,10 @@ def _run_parallel(repos: List[Repo], worker, parallel: int, show_progress: bool 
                     with _PRINT_LOCK:
                         ui.print_progress_line(res)
     except KeyboardInterrupt:
-        print("\ninterrupted", file=sys.stderr)
+        print("\n已中断", file=sys.stderr)
         for i, repo in enumerate(repos):
             if results[i] is None:
-                results[i] = RepoResult(repo=repo, error="interrupted")
+                results[i] = RepoResult(repo=repo, error="已中断")
         return [r for r in results if r is not None]
 
     return [r for r in results if r is not None]
@@ -331,8 +374,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if command == "init":
         return cmd_init()
     if command == "exec" and not exec_cmd.strip():
-        print("error: exec needs a command. Usage: qpush exec -- <command...>",
-              file=sys.stderr)
+        print("错误:exec 需要一条命令。用法:qpush exec -- <命令...>", file=sys.stderr)
         return 2
 
     assert args is not None
@@ -341,12 +383,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         repos = config.discover(_discovery_args(args))
     except config.ConfigError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"错误:{exc}", file=sys.stderr)
         return 2
 
     if not repos:
-        print("no repositories found.", file=sys.stderr)
-        print("configure via .qpush.json, or pass --repos / --scan.", file=sys.stderr)
+        print("未找到任何仓库。", file=sys.stderr)
+        print("请通过 .qpush.json 配置,或使用 --repos / --scan。", file=sys.stderr)
         return 1
 
     if command == "scan":
@@ -374,9 +416,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     if opts.commit and not opts.message:
         print(
-            "error: a commit message is required when committing.\n"
-            "  e.g.  qpush \"fix: handle empty input\"\n"
-            "        qpush -m \"fix: handle empty input\"",
+            "错误:提交时需要一条提交信息。\n"
+            "  例如  qpush \"fix: 处理空输入\"\n"
+            "        qpush -m \"fix: 处理空输入\"",
             file=sys.stderr,
         )
         return 2

@@ -185,7 +185,7 @@ class PullTest(unittest.TestCase):
     def test_pull_up_to_date(self):
         res = engine.process_pull(self.repo_obj(), pullopts())
         self.assertIsNone(res.error)
-        self.assertEqual(res.note, "up to date")
+        self.assertEqual(res.note, "已是最新")
         self.assertFalse(res.acted)
         self.assertEqual(res.overall, Outcome.SKIPPED)
 
@@ -194,7 +194,7 @@ class PullTest(unittest.TestCase):
         head_before = git(self.repo, "rev-parse", "HEAD").stdout.strip()
         res = engine.process_pull(self.repo_obj(), pullopts())
         self.assertTrue(res.acted)
-        self.assertEqual(res.note, "updated")
+        self.assertEqual(res.note, "已更新")
         head_after = git(self.repo, "rev-parse", "HEAD").stdout.strip()
         self.assertNotEqual(head_before, head_after)
         self.assertEqual(res.overall, Outcome.OK)
@@ -203,17 +203,17 @@ class PullTest(unittest.TestCase):
         append_file(self.repo, "a.txt", "x")
         res = engine.process_pull(self.repo_obj(), pullopts())
         self.assertFalse(res.acted)
-        self.assertIn("dirty", res.note)
+        self.assertIn("改动", res.note)
 
     def test_pull_detached_is_skipped(self):
         git(self.repo, "checkout", "-q", "--detach")
         res = engine.process_pull(self.repo_obj(), pullopts())
-        self.assertIn("detached", res.note)
+        self.assertIn("游离", res.note)
 
     def test_pull_missing_remote_is_skipped(self):
         repo2, _ = make_repo(self.base, "noremote", with_remote=False)
         res = engine.process_pull(Repo(path=str(repo2)), pullopts())
-        self.assertIn("no remote", res.note)
+        self.assertIn("远端", res.note)
 
     def test_pull_conflict_reports_failure(self):
         adv_origin_via_clone(self.base, self.origin, content="clone wins")
@@ -249,7 +249,7 @@ class ExecTest(unittest.TestCase):
     def test_exec_ok(self):
         res = engine.process_exec(self.repo_obj(), ExecOptions(cmd="echo hello"))
         self.assertTrue(res.acted)
-        self.assertEqual(res.note, "ok")
+        self.assertEqual(res.note, "成功")
         self.assertEqual(res.overall, Outcome.OK)
         self.assertTrue(any("hello" in msg for _, msg in res.log))
 
@@ -257,7 +257,7 @@ class ExecTest(unittest.TestCase):
         res = engine.process_exec(self.repo_obj(), ExecOptions(cmd="false"))
         self.assertFalse(res.acted)
         self.assertEqual(res.overall, Outcome.FAILED)
-        self.assertIn("exit", (res.note or ""))
+        self.assertIn("退出码", (res.note or ""))
 
     def test_exec_runs_in_repo_root(self):
         res = engine.process_exec(self.repo_obj(), ExecOptions(cmd="pwd"))
@@ -267,7 +267,7 @@ class ExecTest(unittest.TestCase):
     def test_exec_dry_run(self):
         res = engine.process_exec(self.repo_obj(), ExecOptions(cmd="echo hi", dry_run=True))
         self.assertFalse(res.acted)
-        self.assertIn("would run", res.note)
+        self.assertIn("将执行", res.note)
 
     def test_exec_empty_command(self):
         res = engine.process_exec(self.repo_obj(), ExecOptions(cmd="   "))

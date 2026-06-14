@@ -85,19 +85,19 @@ class RepoResult:
         if self.error:
             return self.error.splitlines()[0]
         if self.committed and self.pushed:
-            parts.append(f"committed + pushed {self.branch or ''}".strip())
+            parts.append(f"已提交并推送 {self.branch or ''}".strip())
         elif self.committed:
-            parts.append("committed (push skipped)")
+            parts.append("已提交(未推送)")
         elif self.pushed:
-            parts.append("pushed")
+            parts.append("已推送")
         elif self.stage_outcome == Outcome.SKIPPED and not self.dirty:
-            parts.append("clean, nothing to commit")
+            parts.append("干净,无需提交")
         else:
-            parts.append("no changes")
+            parts.append("无改动")
         if self.ahead and not self.pushed:
-            parts.append(f"ahead {self.ahead}")
+            parts.append(f"领先 {self.ahead}")
         if self.behind:
-            parts.append(f"behind {self.behind}")
+            parts.append(f"落后 {self.behind}")
         return ", ".join(parts)
 
 

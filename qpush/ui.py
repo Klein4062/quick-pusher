@@ -68,7 +68,7 @@ def symbol_for(outcome: Outcome) -> str:
 
 def branch_label(res: RepoResult) -> str:
     if res.detached:
-        return dim("detached")
+        return dim("游离")
     return res.branch or dim("-")
 
 
@@ -98,7 +98,7 @@ def print_summary(results: List[RepoResult], verbose: bool = False) -> None:
     # 失败仓库(始终)或所有仓库(verbose)的详细日志。
     show_details = [r for r in results if verbose or r.overall == Outcome.FAILED]
     if show_details:
-        print_header("details")
+        print_header("详情")
         for res in show_details:
             print(f"  {bold(res.repo.name)}  {dim(res.repo.path)}")
             if res.error:
@@ -106,41 +106,41 @@ def print_summary(results: List[RepoResult], verbose: bool = False) -> None:
                     print(f"    {red(line)}")
             for level, msg in res.log:
                 if level == "error":
-                    print(f"    {red('error')}: {msg}")
+                    print(f"    {red('错误')}: {msg}")
                 elif level == "warn":
-                    print(f"    {yellow('warn')}: {msg}")
+                    print(f"    {yellow('警告')}: {msg}")
                 elif level == "hint":
-                    print(f"    {cyan('hint')}: {msg}")
+                    print(f"    {cyan('提示')}: {msg}")
                 else:
                     print(f"    {dim('·')} {msg}")
 
-    print_header("summary")
+    print_header("汇总")
     total = len(results)
     parts = []
     if ok:
-        parts.append(green(f"{ok} ok"))
+        parts.append(green(f"{ok} 成功"))
     if skipped:
-        parts.append(yellow(f"{skipped} skipped"))
+        parts.append(yellow(f"{skipped} 跳过"))
     if failed:
-        parts.append(red(f"{failed} failed"))
-    tally = ", ".join(parts) if parts else "no repos"
-    print(f"  {bold(str(total))} repo{'s' if total != 1 else ''}: {tally}")
+        parts.append(red(f"{failed} 失败"))
+    tally = ", ".join(parts) if parts else "无仓库"
+    print(f"  {bold(str(total))} 个仓库: {tally}")
 
 
 def print_status_table(results: List[RepoResult]) -> None:
-    print_header("status")
+    print_header("状态")
     name_w = max((len(r.repo.name) for r in results), default=8)
     for res in results:
         branch = branch_label(res)
         flags = []
         if res.detached:
-            flags.append(yellow("detached"))
+            flags.append(yellow("游离"))
         if res.dirty:
-            flags.append(red("dirty"))
+            flags.append(red("有改动"))
         if res.ahead:
             flags.append(green(f"↑{res.ahead}"))
         if res.behind:
             flags.append(yellow(f"↓{res.behind}"))
-        flag_str = " ".join(flags) if flags else dim("clean")
+        flag_str = " ".join(flags) if flags else dim("干净")
         print(f"  {res.repo.name:<{name_w}}  {branch:<14}  {flag_str}")
     print_summary(results)

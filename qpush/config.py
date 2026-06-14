@@ -78,7 +78,7 @@ def load_config(path: str) -> dict:
     try:
         return json.loads(_strip_comments_and_trailing_commas(raw))
     except json.JSONDecodeError as exc:
-        raise ConfigError(f"failed to parse config {path}: {exc}") from exc
+        raise ConfigError(f"解析配置 {path} 失败:{exc}") from exc
 
 
 # --- 配置文件查找 -------------------------------------------------------------
@@ -146,7 +146,7 @@ def _repo_entries_from_config(cfg: dict, base: str) -> Iterable[Repo]:
         elif isinstance(entry, dict):
             path = entry.get("path")
             if not path:
-                raise ConfigError("repo entry missing 'path'")
+                raise ConfigError("仓库条目缺少 'path'")
             yield Repo(
                 path=resolve_path(str(path), base),
                 remote=entry.get("remote"),
@@ -154,7 +154,7 @@ def _repo_entries_from_config(cfg: dict, base: str) -> Iterable[Repo]:
                 name=entry.get("name"),
             )
         else:
-            raise ConfigError(f"invalid repo entry: {entry!r}")
+            raise ConfigError(f"无效的仓库条目:{entry!r}")
 
 
 def _match_any(name: str, path: str, patterns: List[str]) -> bool:
@@ -248,7 +248,7 @@ def discover(args: DiscoveryArgs) -> List[Repo]:
         if git.is_repo(repo.path):
             valid.append(repo)
         else:
-            _warn(f"skipping {repo.name}: not a git repository ({repo.path})")
+            _warn(f"跳过 {repo.name}:不是 git 仓库({repo.path})")
 
     # 按 --only / --ignore 过滤(匹配仓库名或路径)
     if args.only:
@@ -262,4 +262,4 @@ def discover(args: DiscoveryArgs) -> List[Repo]:
 def _warn(message: str) -> None:
     import sys
 
-    print(f"warning: {message}", file=sys.stderr)
+    print(f"警告:{message}", file=sys.stderr)

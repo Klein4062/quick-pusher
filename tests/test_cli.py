@@ -59,7 +59,7 @@ class CliTest(unittest.TestCase):
                 git(r, "rev-parse", "origin/main").stdout.strip(),
                 git(r, "rev-parse", "HEAD").stdout.strip(),
             )
-        self.assertIn("2 repos: 2 ok", out.replace("\n", " "))
+        self.assertIn("2 个仓库: 2 成功", out.replace("\n", " "))
 
     def test_flags_before_message_works(self):
         append_file(self.base / "alpha", "a.txt", "x")
@@ -81,12 +81,12 @@ class CliTest(unittest.TestCase):
         append_file(self.base / "alpha", "a.txt", "x")
         code, out, err = run_cli(["--color", "never", "--repos", str(self.base / "alpha")])
         self.assertEqual(code, 2)
-        self.assertIn("commit message is required", err)
+        self.assertIn("需要一条提交信息", err)
 
     def test_no_repos_returns_1(self):
         code, out, err = run_cli(["--color", "never", "msg"])
         self.assertEqual(code, 1)
-        self.assertIn("no repositories found", err)
+        self.assertIn("未找到任何仓库", err)
 
     def test_scan_command_lists_repos(self):
         code, out, err = run_cli(["scan", "--color", "never", *self.repo_flags()])
@@ -99,15 +99,15 @@ class CliTest(unittest.TestCase):
         append_file(self.base / "alpha", "a.txt", "x")
         code, out, err = run_cli(["--color", "never", "scan", *self.repo_flags()])
         self.assertEqual(code, 0, err)
-        self.assertIn("discovered", out)
+        self.assertIn("发现", out)
         # 关键:没有任何仓库被提交
-        self.assertNotIn("committed", out)
+        self.assertNotIn("已提交", out)
         self.assertNotIn("alpha", git(self.base / "alpha", "log", "-1", "--pretty=%B").stdout)
 
     def test_status_command_runs(self):
         code, out, err = run_cli(["status", "--color", "never", *self.repo_flags()])
         self.assertEqual(code, 0, err)
-        self.assertIn("clean", out)
+        self.assertIn("干净", out)
 
     def test_dry_run_makes_no_changes(self):
         repo = self.base / "alpha"
@@ -117,7 +117,7 @@ class CliTest(unittest.TestCase):
             ["--color", "never", "--dry-run", "msg", "--repos", str(repo)]
         )
         self.assertEqual(code, 0, err)
-        self.assertIn("DRY RUN", out)
+        self.assertIn("预演", out)
         self.assertEqual(head_before, git(repo, "rev-parse", "HEAD").stdout.strip())
 
     def test_uses_config_file_in_cwd(self):
@@ -143,7 +143,7 @@ class CliTest(unittest.TestCase):
     def test_pull_up_to_date_via_cli(self):
         code, out, err = run_cli(["pull", "--color", "never", *self.repo_flags()])
         self.assertEqual(code, 0, err)
-        self.assertIn("up to date", out)
+        self.assertIn("已是最新", out)
 
     def test_pull_updates_via_cli(self):
         # 从一个 clone 推进 alpha 的 origin,使 alpha 落后于远端
@@ -159,14 +159,14 @@ class CliTest(unittest.TestCase):
         git(clone, "push", "-q", "origin", "main")
         code, out, err = run_cli(["pull", "--color", "never", "--repos", str(self.base / "alpha")])
         self.assertEqual(code, 0, err)
-        self.assertIn("updated", out)
+        self.assertIn("已更新", out)
 
     def test_exec_via_cli(self):
         code, out, err = run_cli(
             ["exec", "--color", "never", *self.repo_flags(), "--", "echo", "hi"]
         )
         self.assertEqual(code, 0, err)
-        self.assertIn("ok", out)
+        self.assertIn("成功", out)
 
     def test_exec_nonzero_exits_nonzero(self):
         code, out, err = run_cli(
@@ -177,7 +177,7 @@ class CliTest(unittest.TestCase):
     def test_exec_needs_command(self):
         code, out, err = run_cli(["exec"])
         self.assertEqual(code, 2)
-        self.assertIn("needs a command", err)
+        self.assertIn("需要一条命令", err)
 
 
 if __name__ == "__main__":

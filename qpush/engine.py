@@ -37,20 +37,20 @@ def process_repo(repo: Repo, opts: Options) -> RepoResult:
     if opts.add:
         if res.dirty:
             if opts.dry_run:
-                log("info", "would stage all changes")
+                log("info", "将暂存所有改动")
             else:
                 code, out, err = git.stage_all(repo.path)
                 if code == 0:
                     res.staged = True
-                    log("info", "staged all changes")
+                    log("info", "已暂存所有改动")
                 else:
                     res.stage_outcome = Outcome.FAILED
-                    res.error = (err or out).strip() or "git add failed"
+                    res.error = (err or out).strip() or "git add 失败"
                     log("error", res.error)
                     return res
         else:
             res.stage_outcome = Outcome.SKIPPED
-            log("info", "nothing to stage (clean)")
+            log("info", "无需暂存(干净)")
     else:
         res.stage_outcome = Outcome.SKIPPED
 
@@ -58,21 +58,21 @@ def process_repo(repo: Repo, opts: Options) -> RepoResult:
     if opts.commit:
         if git.has_staged_changes(repo.path):
             if opts.dry_run:
-                log("info", f"would commit: {opts.message!r}")
+                log("info", f"将提交:{opts.message!r}")
             else:
                 code, out, err = git.commit(repo.path, opts.message or "")
                 if code == 0:
                     res.committed = True
                     summary = out.strip().splitlines()
-                    log("info", summary[-1] if summary else "committed")
+                    log("info", summary[-1] if summary else "已提交")
                 else:
                     res.commit_outcome = Outcome.FAILED
-                    res.error = (err or out).strip() or "git commit failed"
+                    res.error = (err or out).strip() or "git commit 失败"
                     log("error", res.error)
                     return res
         else:
             res.commit_outcome = Outcome.SKIPPED
-            log("info", "nothing to commit")
+            log("info", "无需提交")
     else:
         res.commit_outcome = Outcome.SKIPPED
 
@@ -80,19 +80,19 @@ def process_repo(repo: Repo, opts: Options) -> RepoResult:
     if opts.push:
         if res.detached or branch is None:
             res.push_outcome = Outcome.SKIPPED
-            log("warn", "skipped push: detached HEAD / no branch")
+            log("warn", "跳过推送:游离 HEAD / 无分支")
         elif not res.committed and res.ahead == 0:
             # 既没有新提交要发送,也没有预先存在的未推送提交。
             res.push_outcome = Outcome.SKIPPED
-            log("info", "up to date, nothing to push")
+            log("info", "已是最新,无需推送")
         elif not git.has_remote(repo.path, remote):
             res.push_outcome = Outcome.SKIPPED
-            log("warn", f"skipped push: no remote named {remote!r}")
+            log("warn", f"跳过推送:没有名为 {remote!r} 的远端")
         else:
             set_upstream = git.upstream(repo.path) is None
             if opts.dry_run:
-                detail = " (set-upstream)" if set_upstream else ""
-                log("info", f"would push {branch} -> {remote}{detail}")
+                detail = "(设置上游)" if set_upstream else ""
+                log("info", f"将推送 {branch} -> {remote} {detail}".strip())
             else:
                 code, out, err = git.push(
                     repo.path,
@@ -104,14 +104,14 @@ def process_repo(repo: Repo, opts: Options) -> RepoResult:
                 )
                 if code == 0:
                     res.pushed = True
-                    log("info", f"pushed {branch} -> {remote}")
+                    log("info", f"已推送 {branch} -> {remote}")
                 else:
                     res.push_outcome = Outcome.FAILED
                     tail = (err or out).strip()
-                    res.error = _clean_push_error(tail) or "git push failed"
+                    res.error = _clean_push_error(tail) or "git push 失败"
                     log("error", res.error)
                     if _looks_like_divergence(tail):
-                        log("hint", "remote diverged — pull/rebase, or use --force")
+                        log("hint", "远端已分叉——请 pull/rebase,或使用 --force")
     else:
         res.push_outcome = Outcome.SKIPPED
 
@@ -156,23 +156,23 @@ def process_pull(repo: Repo, opts: PullOptions) -> RepoResult:
     branch = repo.branch or opts.branch or res.branch
 
     if res.detached or branch is None:
-        res.note = "skipped: detached HEAD"
+        res.note = "跳过:游离 HEAD"
         log("warn", res.note)
         return res
     if not git.has_commits(repo.path):
-        res.note = "skipped: no commits yet"
+        res.note = "跳过:尚无提交"
         log("warn", res.note)
         return res
     if res.dirty:
-        res.note = "skipped: dirty tree (commit or stash first)"
+        res.note = "跳过:工作区有改动(请先提交或 stash)"
         log("warn", res.note)
         return res
     if not git.has_remote(repo.path, remote):
-        res.note = f"skipped: no remote {remote!r}"
+        res.note = f"跳过:没有远端 {remote!r}"
         log("warn", res.note)
         return res
     if opts.dry_run:
-        res.note = f"would pull {branch} from {remote}"
+        res.note = f"将从 {remote} 拉取 {branch}"
         return res
 
     head_before = git.run(repo.path, ["rev-parse", "HEAD"])[1].strip()
@@ -189,10 +189,10 @@ def process_pull(repo: Repo, opts: PullOptions) -> RepoResult:
     if code == 0:
         head_after = git.run(repo.path, ["rev-parse", "HEAD"])[1].strip()
         if head_before == head_after:
-            res.note = "up to date"
+            res.note = "已是最新"
         else:
             res.acted = True
-            res.note = "updated"
+            res.note = "已更新"
         for line in (err or "").splitlines():
             if line.strip():
                 log("info", line.strip())
@@ -201,11 +201,11 @@ def process_pull(repo: Repo, opts: PullOptions) -> RepoResult:
     low = text.lower()
     if "conflict" in low or "could not apply" in low:
         res.conflicts = True
-        res.error = "pull conflicts — resolve and continue (e.g. git rebase --continue)"
-        res.note = "conflicts"
+        res.error = "拉取产生冲突——请解决后继续(如 git rebase --continue)"
+        res.note = "有冲突"
         log("error", res.error)
     else:
-        cleaned = _clean_push_error(text) or "git pull failed"
+        cleaned = _clean_push_error(text) or "git pull 失败"
         res.error = cleaned
         res.note = cleaned.splitlines()[0]
         log("error", cleaned)
@@ -225,11 +225,11 @@ def process_exec(repo: Repo, opts: ExecOptions) -> RepoResult:
         res.log.append((level, msg))
 
     if not opts.cmd.strip():
-        res.error = "no command given"
+        res.error = "未给出命令"
         res.note = res.error
         return res
     if opts.dry_run:
-        res.note = f"would run: {opts.cmd}"
+        res.note = f"将执行:{opts.cmd}"
         return res
 
     proc = subprocess.run(
@@ -246,8 +246,8 @@ def process_exec(repo: Repo, opts: ExecOptions) -> RepoResult:
         log("info", proc.stderr.rstrip())
     if proc.returncode == 0:
         res.acted = True
-        res.note = "ok"
+        res.note = "成功"
     else:
-        res.error = f"exit {proc.returncode}"
+        res.error = f"退出码 {proc.returncode}"
         res.note = res.error
     return res
