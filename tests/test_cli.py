@@ -1,3 +1,5 @@
+"""命令行接口的端到端测试:scan/status/pull/exec 以及默认的 push 主流程。"""
+
 import io
 import json
 import os
@@ -50,7 +52,7 @@ class CliTest(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("sync: update", self.last_msg("alpha"))
         self.assertIn("sync: update", self.last_msg("beta"))
-        # both pushed: origin/main == HEAD
+        # 两者都已推送:origin/main == HEAD
         for name in ("alpha", "beta"):
             r = self.base / name
             self.assertEqual(
@@ -93,12 +95,12 @@ class CliTest(unittest.TestCase):
         self.assertIn("beta", out)
 
     def test_subcommand_after_global_flag_is_not_treated_as_message(self):
-        # `qpush --color never scan` must run scan, NOT push with message "scan".
+        # `qpush --color never scan` 必须执行 scan,而不是把 "scan" 当作提交信息去 push。
         append_file(self.base / "alpha", "a.txt", "x")
         code, out, err = run_cli(["--color", "never", "scan", *self.repo_flags()])
         self.assertEqual(code, 0, err)
         self.assertIn("discovered", out)
-        # crucially: nothing was committed
+        # 关键:没有任何仓库被提交
         self.assertNotIn("committed", out)
         self.assertNotIn("alpha", git(self.base / "alpha", "log", "-1", "--pretty=%B").stdout)
 
@@ -144,7 +146,7 @@ class CliTest(unittest.TestCase):
         self.assertIn("up to date", out)
 
     def test_pull_updates_via_cli(self):
-        # advance alpha's origin from a clone, so alpha falls behind
+        # 从一个 clone 推进 alpha 的 origin,使 alpha 落后于远端
         import subprocess
         origin = self.base / "alpha.origin.git"
         clone = self.base / "advclone"

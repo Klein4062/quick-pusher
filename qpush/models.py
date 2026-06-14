@@ -1,4 +1,4 @@
-"""Data models: Repo, RepoResult, Outcome, and the Options bag."""
+"""数据模型:Repo、RepoResult、Outcome,以及 Options 等配置数据包。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 
 
 class Outcome(str, Enum):
-    """Per-step result for a single repository."""
+    """单个仓库某一步骤的结果。"""
 
     OK = "ok"
     SKIPPED = "skipped"
@@ -17,7 +17,7 @@ class Outcome(str, Enum):
 
 
 class Repo:
-    """A target git repository with optional per-repo overrides."""
+    """一个目标 git 仓库,可附带针对单个仓库的覆盖项。"""
 
     def __init__(
         self,
@@ -31,7 +31,7 @@ class Repo:
         self.branch = branch
         self.name = name or os.path.basename(os.path.normpath(path))
 
-    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+    def __repr__(self) -> str:  # pragma: no cover - 调试用
         return f"Repo(name={self.name!r}, path={self.path!r})"
 
     def __eq__(self, other: object) -> bool:
@@ -43,7 +43,7 @@ class Repo:
 
 @dataclass
 class RepoResult:
-    """The outcome of processing one repository."""
+    """处理一个仓库后得到的结果。"""
 
     repo: Repo
     branch: Optional[str] = None
@@ -58,18 +58,18 @@ class RepoResult:
     commit_outcome: Outcome = Outcome.OK
     push_outcome: Outcome = Outcome.OK
     error: Optional[str] = None
-    # Generic fields used by pull/exec (and usable by any future command):
-    # `note` overrides the one-line summary; `acted` marks a successful action;
-    # `conflicts` marks a pull that left the tree mid-merge/rebase.
+    # 以下为 pull/exec(以及将来任何命令)使用的通用字段:
+    # `note` 覆盖单行摘要;`acted` 标记"已成功执行某动作";
+    # `conflicts` 标记 pull 后工作区处于半合并/半 rebase 状态。
     acted: bool = False
     conflicts: bool = False
     note: Optional[str] = None
-    # Collected log lines: (level, message). level in {info, warn, error, hint}.
+    # 收集到的日志行:(level, message)。level 取值 {info, warn, error, hint}。
     log: List[Tuple[str, str]] = field(default_factory=list)
 
     @property
     def overall(self) -> Outcome:
-        """One verdict across whatever this repo was asked to do."""
+        """对该仓库所做所有动作的一个总体判定。"""
         if self.error or self.conflicts:
             return Outcome.FAILED
         if self.committed or self.pushed or self.acted:
@@ -78,7 +78,7 @@ class RepoResult:
 
     @property
     def steps_summary(self) -> str:
-        """Human-readable one-liner for the progress line and summary."""
+        """用于进度行和汇总报告的单行可读摘要。"""
         if self.note:
             return self.note
         parts: List[str] = []
@@ -103,7 +103,7 @@ class RepoResult:
 
 @dataclass
 class Options:
-    """Resolved settings driving the push engine."""
+    """驱动 push 引擎的已解析配置。"""
 
     message: Optional[str]
     add: bool = True
@@ -120,7 +120,7 @@ class Options:
 
 @dataclass
 class PullOptions:
-    """Settings driving `qpush pull`."""
+    """驱动 `qpush pull` 的配置。"""
 
     rebase: bool = True
     ff_only: bool = False
@@ -134,7 +134,7 @@ class PullOptions:
 
 @dataclass
 class ExecOptions:
-    """Settings driving `qpush exec`."""
+    """驱动 `qpush exec` 的配置。"""
 
     cmd: str
     dry_run: bool = False

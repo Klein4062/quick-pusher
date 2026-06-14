@@ -1,4 +1,4 @@
-"""Repository discovery: config file + directory scan, merged and de-duplicated."""
+"""仓库发现:配置文件 + 目录扫描,合并后按真实路径去重。"""
 
 from __future__ import annotations
 
@@ -14,19 +14,19 @@ from .models import Repo
 
 
 class ConfigError(Exception):
-    """Raised for malformed config or resolution failures."""
+    """配置文件格式错误或路径解析失败时抛出。"""
 
 
-# --- config file loading -----------------------------------------------------
+# --- 配置文件加载 -------------------------------------------------------------
 
 _TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
 
 
 def _strip_comments(text: str) -> str:
-    """Remove //, #, and /* */ comments while respecting JSON string literals.
+    """移除 //、#、/* */ 注释,同时尊重 JSON 字符串字面量。
 
-    A naive regex would corrupt values like URLs ('https://...') or colors
-    ('#fff'), so we walk the text tracking whether we're inside a string.
+    朴素的正则会破坏诸如 URL('https://...')或颜色('#fff')这样的值,
+    因此这里逐字符扫描,跟踪是否处于字符串内部。
     """
     out = []
     i, n = 0, len(text)
@@ -49,12 +49,12 @@ def _strip_comments(text: str) -> str:
             out.append(c)
             i += 1
             continue
-        # line comment: // or #
+        # 行注释:// 或 #
         if c == "#" or (c == "/" and i + 1 < n and text[i + 1] == "/"):
             while i < n and text[i] != "\n":
                 i += 1
             continue
-        # block comment: /* ... */
+        # 块注释:/* ... */
         if c == "/" and i + 1 < n and text[i + 1] == "*":
             i += 2
             while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
@@ -67,7 +67,7 @@ def _strip_comments(text: str) -> str:
 
 
 def _strip_comments_and_trailing_commas(text: str) -> str:
-    """Allow //, #, /* */ comments and trailing commas in JSON config files."""
+    """让 JSON 配置文件可以包含 //、#、/* */ 注释以及尾随逗号。"""
     text = _strip_comments(text)
     text = _TRAILING_COMMA_RE.sub(r"\1", text)
     return text
@@ -81,13 +81,13 @@ def load_config(path: str) -> dict:
         raise ConfigError(f"failed to parse config {path}: {exc}") from exc
 
 
-# --- config file search ------------------------------------------------------
+# --- 配置文件查找 -------------------------------------------------------------
 
 DEFAULT_CONFIG_NAMES = (".qpush.json", "qpush.json")
 
 
 def find_config(start: Optional[str] = None) -> Optional[str]:
-    """Search for a config file: cwd upward, then the user home."""
+    """查找配置文件:从当前目录逐级向上,再到用户主目录。"""
     start_dir = Path(start or os.getcwd()).resolve()
     for directory in (start_dir, *start_dir.parents):
         for name in DEFAULT_CONFIG_NAMES:
@@ -101,11 +101,11 @@ def find_config(start: Optional[str] = None) -> Optional[str]:
     return None
 
 
-# --- path resolution ---------------------------------------------------------
+# --- 路径解析 -----------------------------------------------------------------
 
 def resolve_path(path: str, base: Optional[str] = None) -> str:
-    """Expand ~, make absolute, resolve relative to base (or cwd). Returns a
-    normalized path; does NOT require the path to exist."""
+    """展开 ~、转为绝对路径、相对 base(或当前工作目录)解析。
+    返回规范化的路径;不要求该路径真实存在。"""
     expanded = os.path.expanduser(path)
     if os.path.isabs(expanded):
         return os.path.normpath(expanded)
@@ -113,11 +113,11 @@ def resolve_path(path: str, base: Optional[str] = None) -> str:
     return os.path.normpath(os.path.join(base_dir, expanded))
 
 
-# --- directory scanning ------------------------------------------------------
+# --- 目录扫描 -----------------------------------------------------------------
 
 def scan_for_repos(root: str, max_depth: int = 3) -> List[str]:
-    """Walk `root` up to `max_depth` levels deep, returning the absolute paths
-    of every git working tree found. Does not descend into found repos."""
+    """从 `root` 开始向下最多扫描 `max_depth` 层,返回找到的每个 git 工作树的
+    绝对路径。不会深入到已发现的仓库内部。"""
     root = os.path.realpath(resolve_path(root))
     if not os.path.isdir(root):
         return []
@@ -128,7 +128,7 @@ def scan_for_repos(root: str, max_depth: int = 3) -> List[str]:
     for dirpath, dirnames, filenames in os.walk(root):
         if ".git" in dirnames or ".git" in filenames:
             found.append(dirpath)
-            dirnames[:] = []  # don't recurse into a discovered repo
+            dirnames[:] = []  # 不再深入已发现的仓库
             continue
         rel_depth = dirpath.rstrip(os.sep).count(os.sep) - root_depth
         if rel_depth >= max_depth:
@@ -137,7 +137,7 @@ def scan_for_repos(root: str, max_depth: int = 3) -> List[str]:
     return found
 
 
-# --- merge + filter ----------------------------------------------------------
+# --- 合并与过滤 ---------------------------------------------------------------
 
 def _repo_entries_from_config(cfg: dict, base: str) -> Iterable[Repo]:
     for entry in cfg.get("repos", []) or []:
@@ -165,10 +165,9 @@ def _match_any(name: str, path: str, patterns: List[str]) -> bool:
 
 
 class DiscoveryArgs:
-    """Lightweight view over CLI args needed for discovery.
+    """发现流程所需的 CLI 参数的轻量视图。
 
-    Avoids importing argparse types into this module and keeps discover()
-    callable from tests with a simple object.
+    避免把 argparse 类型引入本模块,也便于测试用一个简单对象直接调用 discover()。
     """
 
     def __init__(
@@ -193,27 +192,27 @@ class DiscoveryArgs:
 
 
 def discover(args: DiscoveryArgs) -> List[Repo]:
-    """Collect repos from CLI, config, and scans; dedupe; filter; validate."""
+    """从命令行、配置文件和扫描目录收集仓库;去重、过滤、校验。"""
     base = args.cwd
     collected: List[Repo] = []
 
-    # 1. explicit --repos
+    # 1. 命令行显式指定的 --repos
     for p in args.repos:
         collected.append(Repo(path=resolve_path(p, base)))
 
-    # 2. config file (explicit path, env, or searched)
+    # 2. 配置文件(显式路径、环境变量,或自动查找)
     cfg_path = args.config_path or os.environ.get("QPUSH_CONFIG") or find_config(base)
     cfg: dict = {}
     if cfg_path:
         cfg = load_config(cfg_path)
-        # paths in the config are relative to the config file's directory
+        # 配置中的相对路径以配置文件所在目录为基准解析
         cfg_base = str(Path(cfg_path).resolve().parent)
         collected.extend(_repo_entries_from_config(cfg, cfg_base))
 
     default_remote = cfg.get("remote") or args.remote
     default_scan_depth = int(cfg.get("scanDepth") or args.scan_depth)
 
-    # 3. scan directories: config "scan" + CLI --scan
+    # 3. 扫描目录:配置的 "scan" + 命令行 --scan
     scan_dirs: List[str] = list(args.scan)
     cfg_scan = cfg.get("scan")
     if isinstance(cfg_scan, str):
@@ -224,13 +223,13 @@ def discover(args: DiscoveryArgs) -> List[Repo]:
         for found_path in scan_for_repos(sd, max_depth=default_scan_depth):
             collected.append(Repo(path=found_path))
 
-    # dedupe by real path, preserving first-seen order (keeps per-repo overrides)
+    # 按真实路径去重,保持首次出现的顺序(从而保留针对单个仓库的覆盖项)
     seen: dict = {}
     ordered: List[Repo] = []
     for repo in collected:
         key = os.path.realpath(repo.path)
         if key in seen:
-            # merge: keep first, but fill in overrides from later entries
+            # 合并:保留第一个,但用后续条目补全覆盖项
             existing = seen[key]
             existing.remote = existing.remote or repo.remote
             existing.branch = existing.branch or repo.branch
@@ -239,11 +238,11 @@ def discover(args: DiscoveryArgs) -> List[Repo]:
         seen[key] = repo
         ordered.append(repo)
 
-    # apply default remote where none specified
+    # 对未指定 remote 的仓库应用默认 remote
     for repo in ordered:
         repo.remote = repo.remote or default_remote
 
-    # validate: keep real repos, skip+warn others
+    # 校验:保留真正的 git 仓库,其余跳过并告警
     valid: List[Repo] = []
     for repo in ordered:
         if git.is_repo(repo.path):
@@ -251,7 +250,7 @@ def discover(args: DiscoveryArgs) -> List[Repo]:
         else:
             _warn(f"skipping {repo.name}: not a git repository ({repo.path})")
 
-    # filter by --only / --ignore (match repo name or path)
+    # 按 --only / --ignore 过滤(匹配仓库名或路径)
     if args.only:
         valid = [r for r in valid if _match_any(r.name, r.path, args.only)]
     if args.ignore:

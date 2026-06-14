@@ -1,4 +1,4 @@
-"""The push engine: stage -> commit -> push for a single repository."""
+"""推送引擎:对单个仓库执行 stage -> commit -> push(以及 pull/exec)。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from .models import ExecOptions, Options, Outcome, PullOptions, Repo, RepoResult
 
 
 def gather_state(repo: Repo) -> RepoResult:
-    """Read branch/dirty/ahead/behind without mutating anything."""
+    """只读地获取分支/是否有改动/领先落后情况,不做任何修改。"""
     res = RepoResult(repo=repo)
     res.dirty = git.is_dirty(repo.path)
     res.branch = git.current_branch(repo.path)
@@ -20,10 +20,10 @@ def gather_state(repo: Repo) -> RepoResult:
 
 
 def process_repo(repo: Repo, opts: Options) -> RepoResult:
-    """Run the configured stage/commit/push pipeline for one repo.
+    """对单个仓库执行配置好的 stage/commit/push 流水线。
 
-    Returns a RepoResult with per-step outcomes. Never raises on git failures —
-    those are captured as FAILED outcomes so the parallel runner keeps going.
+    返回带有各步骤结果的 RepoResult。git 失败时不会抛异常——而是记为
+    FAILED 结果,以便并发执行器能继续处理其余仓库。
     """
     res = gather_state(repo)
 
@@ -33,7 +33,7 @@ def process_repo(repo: Repo, opts: Options) -> RepoResult:
     remote = repo.remote or opts.remote
     branch = repo.branch or opts.branch or res.branch
 
-    # --- stage ---------------------------------------------------------------
+    # --- 暂存(stage)------------------------------------------------------
     if opts.add:
         if res.dirty:
             if opts.dry_run:
@@ -54,7 +54,7 @@ def process_repo(repo: Repo, opts: Options) -> RepoResult:
     else:
         res.stage_outcome = Outcome.SKIPPED
 
-    # --- commit --------------------------------------------------------------
+    # --- 提交(commit)-----------------------------------------------------
     if opts.commit:
         if git.has_staged_changes(repo.path):
             if opts.dry_run:
@@ -76,13 +76,13 @@ def process_repo(repo: Repo, opts: Options) -> RepoResult:
     else:
         res.commit_outcome = Outcome.SKIPPED
 
-    # --- push ----------------------------------------------------------------
+    # --- 推送(push)-------------------------------------------------------
     if opts.push:
         if res.detached or branch is None:
             res.push_outcome = Outcome.SKIPPED
             log("warn", "skipped push: detached HEAD / no branch")
         elif not res.committed and res.ahead == 0:
-            # Nothing new to send and no pre-existing unpushed commits.
+            # 既没有新提交要发送,也没有预先存在的未推送提交。
             res.push_outcome = Outcome.SKIPPED
             log("info", "up to date, nothing to push")
         elif not git.has_remote(repo.path, remote):
@@ -119,7 +119,7 @@ def process_repo(repo: Repo, opts: Options) -> RepoResult:
 
 
 def _clean_push_error(text: str) -> str:
-    """Reduce noisy multi-line git push output to the useful lines."""
+    """把多行的 git push 噪声输出精简为有用的那几行。"""
     if not text:
         return ""
     keep: List[str] = []
@@ -130,7 +130,7 @@ def _clean_push_error(text: str) -> str:
         if line.startswith("remote:"):
             continue
         keep.append(line)
-    # collapse progress/stat lines
+    # 折叠进度/统计行
     return "\n".join(keep) if keep else text.strip()
 
 
@@ -142,10 +142,10 @@ def _looks_like_divergence(text: str) -> bool:
 # --- pull --------------------------------------------------------------------
 
 def process_pull(repo: Repo, opts: PullOptions) -> RepoResult:
-    """Fetch and integrate remote changes for one repo (rebase by default).
+    """拉取并合并单个仓库的远端更新(默认 rebase)。
 
-    Dirty trees, detached HEAD, and missing remotes are skipped with a note
-    rather than attempted — pulling into a dirty tree is too likely to collide.
+    脏工作区、游离 HEAD、缺少远端的仓库会被跳过并附说明,而不是强行尝试——
+    往脏工作区里 pull 太容易产生冲突。
     """
     res = gather_state(repo)
 
@@ -215,7 +215,7 @@ def process_pull(repo: Repo, opts: PullOptions) -> RepoResult:
 # --- exec --------------------------------------------------------------------
 
 def process_exec(repo: Repo, opts: ExecOptions) -> RepoResult:
-    """Run a shell command in the repo's working-tree root."""
+    """在仓库的工作树根目录执行一条 shell 命令。"""
     import subprocess
 
     res = RepoResult(repo=repo)

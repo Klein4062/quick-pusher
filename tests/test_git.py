@@ -1,3 +1,5 @@
+"""git 子进程封装的测试:仓库判定、分支/上游、暂存、提交、推送、领先落后。"""
+
 import subprocess
 import unittest
 from pathlib import Path
@@ -42,7 +44,7 @@ class GitWrappersTest(unittest.TestCase):
         self.assertEqual(code, 0)
         code, _, err = qgit.push(str(self.repo), "origin", "main")
         self.assertEqual(code, 0)
-        # origin advanced to our commit
+        # origin 已前进到我们的提交
         origin_main = git(self.repo, "rev-parse", "origin/main").stdout.strip()
         head = qgit.run(str(self.repo), ["rev-parse", "HEAD"])[1].strip()
         self.assertEqual(origin_main, head)
@@ -52,7 +54,7 @@ class GitWrappersTest(unittest.TestCase):
         self.assertFalse(qgit.has_remote(str(self.repo), "nope"))
 
     def test_ahead_behind(self):
-        # push already up to date -> 0/0
+        # 已是最新,推送无变化 -> 0/0
         self.assertEqual(qgit.ahead_behind(str(self.repo), "origin/main"), (0, 0))
         append_file(self.repo, "README.md", "x")
         git(self.repo, "add", "-A")

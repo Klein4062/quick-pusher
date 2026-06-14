@@ -1,9 +1,8 @@
-"""Command-line interface: argument parsing, dispatch, and the parallel runner.
+"""命令行界面:参数解析、子命令分发、并发执行器。
 
-`qpush "<message>" [flags]` is the default action (commit & push every
-discovered repo). `qpush status|scan|init` are alternative commands, detected
-as the first token. Keeping push as the top-level default means flags may
-appear in any order around the message.
+`qpush "<message>" [flags]` 是默认动作(对所有发现的仓库提交并推送)。
+`qpush status|scan|init|pull|exec` 是其它子命令,按第一个位置参数识别。
+让 push 作为顶层默认动作,意味着各 flag 可以出现在信息前后任意位置。
 """
 
 from __future__ import annotations
@@ -23,12 +22,12 @@ SUBCOMMANDS = {"status", "scan", "init", "pull", "exec"}
 
 EXAMPLE_CONFIG = """\
 {
-  // Repositories to operate on (path string, or object with overrides).
+  // 要操作的仓库(路径字符串,或带覆盖项的对象)。
   "repos": [
     "~/projects/repo-a",
     { "path": "../repo-b", "remote": "origin", "branch": "main" }
   ],
-  // Directories to scan for git repos (string or list).
+  // 要扫描的 git 仓库目录(字符串或列表)。
   "scan": "~/projects",
   "scanDepth": 3,
   "remote": "origin",
@@ -43,10 +42,10 @@ PROG_DESCRIPTION = (
 )
 
 
-# --- argument parsing --------------------------------------------------------
+# --- 参数解析 -----------------------------------------------------------------
 
 def _add_common(p: argparse.ArgumentParser) -> None:
-    """Options shared by every command (repo discovery + output)."""
+    """所有子命令共享的选项(仓库发现 + 输出)。"""
     p.add_argument("--config", metavar="PATH", help="path to a qpush config file")
     p.add_argument("--repos", action="append", metavar="PATH", default=[],
                    help="explicit repository path (repeatable)")
@@ -150,7 +149,7 @@ def _discovery_args(args) -> config.DiscoveryArgs:
     )
 
 
-# --- subcommands -------------------------------------------------------------
+# --- 子命令 -------------------------------------------------------------------
 
 def cmd_scan(repos: List[Repo]) -> int:
     ui.print_header(f"discovered {len(repos)} repo{'s' if len(repos) != 1 else ''}")
@@ -221,14 +220,14 @@ def cmd_exec(repos: List[Repo], cmd: str, args) -> int:
 
 
 def _run_parallel(repos: List[Repo], worker, parallel: int, show_progress: bool = True) -> List[RepoResult]:
-    """Run `worker(repo)` across repos concurrently, preserving input order."""
+    """并发地对每个仓库执行 `worker(repo)`,并保持输入顺序。"""
     results: List[Optional[RepoResult]] = [None] * len(repos)
     workers = max(1, min(parallel, len(repos) or 1))
 
     def _do(idx: int, repo: Repo) -> RepoResult:
         try:
             return worker(repo)
-        except Exception as exc:  # never let one repo kill the run
+        except Exception as exc:  # 不让单个仓库拖垮整批任务
             res = RepoResult(repo=repo, error=f"unexpected error: {exc}")
             res.log.append(("error", str(exc)))
             return res
@@ -254,11 +253,10 @@ def _run_parallel(repos: List[Repo], worker, parallel: int, show_progress: bool 
 
 
 def _split_for_exec(rest: List[str]):
-    """Split exec argv into (qpush-option tokens, command tokens) on `--`.
+    """按 `--` 把 exec 的 argv 拆分为 (qpush 选项 token, 命令 token)。
 
-    Without an explicit `--`, falls back to the first positional token (so
-    `qpush exec git status` works too). Returns ([], cmd_tokens) when only a
-    command is present.
+    如果没有显式的 `--`,则回退到第一个位置参数(因此 `qpush exec git status`
+    也能工作)。当只给出命令时,返回 ([], 命令 token)。
     """
     if "--" in rest:
         i = rest.index("--")
@@ -269,11 +267,10 @@ def _split_for_exec(rest: List[str]):
     return rest[:idx], rest[idx:]
 
 
-# --- entrypoint --------------------------------------------------------------
+# --- 入口 ---------------------------------------------------------------------
 
-# Options that consume the following token as their value. Used by the
-# pre-scan that finds the first positional (so a subcommand can be recognized
-# even when global options precede it, e.g. `qpush --color never scan`).
+# 会消耗后一个 token 作为其取值的选项。用于查找第一个位置参数的预扫描,
+# 以便即使全局选项出现在子命令之前(如 `qpush --color never scan`)也能识别出子命令。
 _VALUE_OPTS = {
     "--config", "--repos", "--scan", "--scan-depth", "--remote", "--branch",
     "--only", "--ignore", "-j", "--color", "-m", "--message",
@@ -281,9 +278,9 @@ _VALUE_OPTS = {
 
 
 def _first_positional(argv: List[str]):
-    """Return (token, index) of the first positional argument, or (None, -1).
+    """返回第一个位置参数的 (token, index);没有则返回 (None, -1)。
 
-    Skips option flags and the tokens they consume as values, and stops at `--`.
+    会跳过选项 flag 及其作为取值的 token,并在遇到 `--` 时停下。
     """
     i = 0
     while i < len(argv):
@@ -299,7 +296,7 @@ def _first_positional(argv: List[str]):
             if tok in _VALUE_OPTS:
                 i += 2
                 continue
-            i += 1  # boolean flag
+            i += 1  # 布尔 flag
             continue
         return tok, i
     return None, -1
@@ -307,8 +304,8 @@ def _first_positional(argv: List[str]):
 def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
 
-    # A subcommand is the first positional token, so global options may precede
-    # it (`qpush --color never scan`). If none matches, default to push.
+    # 子命令是第一个位置参数,因此全局选项可以出现在它之前(如 `qpush --color never scan`)。
+    # 如果没有匹配的子命令,则默认为 push。
     command = "push"
     args = None
     exec_cmd = ""
@@ -361,7 +358,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if command == "exec":
         return cmd_exec(repos, exec_cmd, args)
 
-    # default: push
+    # 默认:push
     opts = Options(
         message=_resolve_message(args),
         add=args.add,

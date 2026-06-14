@@ -1,3 +1,5 @@
+"""配置发现与加载的测试:JSONC 注释剥离、路径解析、目录扫描、去重与过滤。"""
+
 import json
 import os
 import unittest
@@ -24,7 +26,7 @@ class ConfigParsingTest(unittest.TestCase):
         cleaned = _strip_comments_and_trailing_commas(text)
         parsed = json.loads(cleaned)
         self.assertEqual(parsed["repos"], ["a", "b"])
-        # strings with // and # must survive untouched
+        # 含有 // 和 # 的字符串必须原样保留,不被误当作注释
         self.assertEqual(parsed["url"], "https://example.com/x")
         self.assertEqual(parsed["color"], "#fff")
 
@@ -40,7 +42,7 @@ class DiscoverTest(unittest.TestCase):
         import tempfile
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        # two real repos + one non-repo directory
+        # 两个真实仓库 + 一个非仓库目录
         make_repo(self.base, "repo-a")
         make_repo(self.base, "repo-b")
         (self.base / "not-a-repo").mkdir()
@@ -55,7 +57,7 @@ class DiscoverTest(unittest.TestCase):
         self.assertEqual(names, {"repo-a", "repo-b"})
 
     def test_scan_does_not_descend_into_repos(self):
-        # a nested dir inside a repo must not be reported as its own repo
+        # 仓库内部的嵌套目录不应被当作独立仓库上报
         nested = self.base / "repo-a" / "nested"
         nested.mkdir()
         os.system(f"git -C {self.base/'repo-a'} init -q {nested} 2>/dev/null")
@@ -72,7 +74,7 @@ class DiscoverTest(unittest.TestCase):
         }))
         repos = config.discover(DiscoveryArgs(config_path=str(cfg), cwd=str(self.base)))
         names = {r.name for r in repos}
-        self.assertEqual(names, {"repo-a", "repo-b"})  # deduped, scan added repo-b
+        self.assertEqual(names, {"repo-a", "repo-b"})  # 已去重,扫描又补上了 repo-b
 
     def test_discover_skips_non_repo(self):
         repos = config.discover(DiscoveryArgs(

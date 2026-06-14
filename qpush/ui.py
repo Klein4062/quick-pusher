@@ -1,4 +1,4 @@
-"""Output formatting: ANSI colors, progress lines, and the summary report."""
+"""输出格式化:ANSI 颜色、进度行、以及汇总报告。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import List
 
 from .models import Outcome, RepoResult
 
-# ANSI codes
+# ANSI 转义码
 _RESET = "\033[0m"
 _BOLD = "\033[1m"
 _DIM = "\033[2m"
@@ -17,7 +17,7 @@ _GREEN = "\033[32m"
 _YELLOW = "\033[33m"
 _CYAN = "\033[36m"
 
-_USE_COLOR = True  # set by configure()
+_USE_COLOR = True  # 由 configure() 设置
 
 
 def configure(use_color) -> None:
@@ -78,7 +78,7 @@ def print_header(title: str) -> None:
 
 
 def print_progress_line(res: RepoResult) -> None:
-    """One compact line emitted as each repo finishes (live feedback)."""
+    """每个仓库完成时输出的一行紧凑信息(实时反馈)。"""
     outcome = res.overall
     sym = symbol_for(outcome)
     branch = branch_label(res)
@@ -95,7 +95,7 @@ def print_summary(results: List[RepoResult], verbose: bool = False) -> None:
     skipped = sum(1 for r in results if r.overall == Outcome.SKIPPED)
     failed = sum(1 for r in results if r.overall == Outcome.FAILED)
 
-    # Detailed logs for failures (always) or everything (verbose).
+    # 失败仓库(始终)或所有仓库(verbose)的详细日志。
     show_details = [r for r in results if verbose or r.overall == Outcome.FAILED]
     if show_details:
         print_header("details")

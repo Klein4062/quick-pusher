@@ -1,4 +1,4 @@
-"""Enable `python -m qpush`."""
+"""使 `python -m qpush` 可用。"""
 
 import sys
 

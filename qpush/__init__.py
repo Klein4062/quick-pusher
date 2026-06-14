@@ -1,4 +1,4 @@
-"""quick-pusher: a multi-repo sync commit & push CLI."""
+"""quick-pusher:一个多仓库同步提交并推送的命令行工具。"""
 
 __version__ = "0.1.0"
 

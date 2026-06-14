@@ -1,5 +1,7 @@
 # quick-pusher
 
+**English** | [简体中文](README.zh-CN.md)
+
 A small, zero-dependency CLI for committing and pushing the **same change across many git repositories at once**. Each repo commits its own working-tree changes with one shared commit message, then pushes to its own remote.
 
 ```sh

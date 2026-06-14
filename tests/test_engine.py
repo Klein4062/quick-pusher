@@ -1,3 +1,5 @@
+"""push / pull / exec 引擎的测试:覆盖提交、推送、跳过、冲突、dry-run 等场景。"""
+
 import subprocess
 import unittest
 from pathlib import Path
@@ -35,7 +37,7 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(res.committed)
         self.assertTrue(res.pushed)
         self.assertEqual(res.overall, Outcome.OK)
-        # origin now matches local head
+        # origin 现在与本地 HEAD 一致
         self.assertEqual(
             git(self.repo, "rev-parse", "origin/main").stdout.strip(),
             git(self.repo, "rev-parse", "HEAD").stdout.strip(),
@@ -63,7 +65,7 @@ class EngineTest(unittest.TestCase):
         self.assertFalse(res.pushed)
         head_after = git(self.repo, "rev-parse", "HEAD").stdout.strip()
         self.assertEqual(head_before, head_after)
-        # still dirty: nothing was staged or committed
+        # 仍然是脏的:既没有暂存,也没有提交
         from qpush import git as qgit
         self.assertTrue(qgit.is_dirty(str(self.repo)))
 
@@ -85,17 +87,17 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(res.push_outcome, Outcome.SKIPPED)
 
     def test_push_sets_upstream_when_missing(self):
-        # drop upstream tracking; a plain push would still work but sets -u
+        # 去掉上游跟踪;普通 push 仍能成功,但会自动加上 -u
         git(self.repo, "branch", "--unset-upstream")
         append_file(self.repo, "a.txt", "x")
         res = engine.process_repo(self.repo_obj(), opts())
         self.assertTrue(res.pushed)
-        # upstream should now be set again
+        # 此时上游应已被重新设置
         from qpush import git as qgit
         self.assertEqual(qgit.upstream(str(self.repo)), "origin/main")
 
     def test_divergence_reports_failure(self):
-        # advance origin from a second clone so the working repo falls behind
+        # 从第二个 clone 推进 origin,使工作仓库落后于远端
         clone = self.base / "clone"
         subprocess.run(["git", "clone", "-q", str(self.origin), str(clone)], check=True)
         git_clone = lambda *a: git(clone, *a)
@@ -105,7 +107,7 @@ class EngineTest(unittest.TestCase):
         git_clone("add", "-A")
         git_clone("commit", "-qm", "clone commit")
         git_clone("push", "-q", "origin", "main")
-        # now working repo diverges
+        # 现在工作仓库与远端分叉
         append_file(self.repo, "a.txt", "local")
         res = engine.process_repo(self.repo_obj(), opts())
         self.assertTrue(res.committed)
@@ -122,8 +124,8 @@ class EngineTest(unittest.TestCase):
         git(clone, "add", "-A")
         git(clone, "commit", "-qm", "clone")
         git(clone, "push", "-q", "origin", "main")
-        # fetch so the working repo's remote-tracking ref matches reality,
-        # which is what --force-with-lease checks.
+        # 先 fetch,让工作仓库的远端跟踪引用与实际情况一致,
+        # 这正是 --force-with-lease 所校验的内容。
         git(self.repo, "fetch", "-q", "origin")
         append_file(self.repo, "a.txt", "local")
         res = engine.process_repo(self.repo_obj(), opts(force=True))
@@ -138,8 +140,8 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(res.pushed)
 
     def test_empty_message_blocks_commit(self):
-        # engine itself just commits whatever message; the CLI guards empties.
-        # Here we ensure a real message is used in the commit.
+        # 引擎本身只是提交传入的信息;空信息由 CLI 拦截。
+        # 这里确保提交时使用了真实的信息。
         append_file(self.repo, "a.txt", "x")
         res = engine.process_repo(self.repo_obj(), opts(message="sync: update"))
         self.assertTrue(res.committed)
@@ -155,7 +157,7 @@ def pullopts(**kw) -> PullOptions:
 
 
 def adv_origin_via_clone(base, origin, content="from clone"):
-    """Push a new commit to origin from a throwaway clone, advancing main."""
+    """通过一个临时 clone 往 origin 推一个新提交,使 main 前进。"""
     import subprocess
     clone = base / "clone"
     subprocess.run(["git", "clone", "-q", str(origin), str(clone)], check=True)
@@ -215,7 +217,7 @@ class PullTest(unittest.TestCase):
 
     def test_pull_conflict_reports_failure(self):
         adv_origin_via_clone(self.base, self.origin, content="clone wins")
-        # local divergent change to the same file
+        # 对同一文件做与远端不同的本地改动
         write_file(self.repo, "README.md", "local wins")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-qm", "local change")

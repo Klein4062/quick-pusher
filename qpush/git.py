@@ -1,4 +1,4 @@
-"""Thin subprocess wrappers around git. All git access goes through here."""
+"""对 git 的轻量 subprocess 封装。所有 git 调用都经由此模块。"""
 
 from __future__ import annotations
 
@@ -6,17 +6,16 @@ import os
 import subprocess
 from typing import List, Optional, Tuple
 
-# A git invocation that needs interactive credentials should fail fast rather
-# than hang the whole multi-repo run waiting on a prompt.
+# 需要交互式凭据的 git 调用应当快速失败,而不是让整个多仓库任务卡在提示符上。
 _GIT_ENV = {
     "GIT_TERMINAL_PROMPT": "0",
     "GIT_PAGER": "cat",
-    "GCM_INTERACTIVE": "0",  # Git Credential Manager (Windows/macOS)
+    "GCM_INTERACTIVE": "0",  # Git Credential Manager(Windows/macOS)
 }
 
 
 class GitError(Exception):
-    """Raised when a checked git command fails."""
+    """当 check=True 的 git 命令失败时抛出。"""
 
 
 def _env() -> dict:
@@ -26,10 +25,10 @@ def _env() -> dict:
 
 
 def run(repo_path: str, args: List[str], check: bool = False) -> Tuple[int, str, str]:
-    """Run `git -C repo_path <args>`, returning (code, stdout, stderr).
+    """执行 `git -C repo_path <args>`,返回 (退出码, stdout, stderr)。
 
-    Never raises unless check=True; callers usually prefer to inspect the code
-    so they can report a clean per-repo failure instead of blowing up the run.
+    除 check=True 外不会抛异常;调用方通常更希望自己检查退出码,
+    以便针对单个仓库给出清晰的失败报告,而不是让整批任务崩溃。
     """
     cmd = ["git", "-C", repo_path, *args]
     proc = subprocess.run(
@@ -60,7 +59,7 @@ def toplevel(path: str) -> Optional[str]:
 
 
 def current_branch(repo_path: str) -> Optional[str]:
-    """Branch name, or None if detached/unknown."""
+    """返回当前分支名;若处于游离 HEAD 或未知则返回 None。"""
     code, out, _ = run(repo_path, ["rev-parse", "--abbrev-ref", "HEAD"])
     if code != 0:
         return None
@@ -74,7 +73,7 @@ def has_commits(repo_path: str) -> bool:
 
 
 def upstream(repo_path: str) -> Optional[str]:
-    """The configured upstream ref (e.g. 'origin/main'), or None."""
+    """已配置的上游引用(例如 'origin/main');没有则返回 None。"""
     code, out, _ = run(
         repo_path,
         ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
@@ -83,26 +82,26 @@ def upstream(repo_path: str) -> Optional[str]:
 
 
 def is_dirty(repo_path: str) -> bool:
-    """True if there are uncommitted changes (staged or unstaged)."""
+    """工作区是否有未提交改动(已暂存或未暂存)则返回 True。"""
     code, out, _ = run(repo_path, ["status", "--porcelain"])
     return bool(out.strip())
 
 
 def has_staged_changes(repo_path: str) -> bool:
-    """True if the index differs from HEAD (i.e. something is staged)."""
+    """暂存区与 HEAD 不同(即有内容被暂存)则返回 True。"""
     code, _, _ = run(repo_path, ["diff", "--cached", "--quiet", "HEAD"], check=False)
-    # exit 0 => clean index vs HEAD; 1 => staged changes; other => error/no HEAD
+    # 退出码 0 => 暂存区与 HEAD 一致;1 => 有已暂存改动;其它 => 出错或尚无 HEAD
     if code == 0:
         return False
     if code == 1:
         return True
-    # No HEAD yet (unborn branch): treat any staged content as staged.
+    # 尚无 HEAD(未诞生的分支):把任何已暂存内容视为"有暂存"。
     code2, out2, _ = run(repo_path, ["diff", "--cached", "--quiet"], check=False)
     return code2 == 1
 
 
 def ahead_behind(repo_path: str, upstream_ref: Optional[str]) -> Tuple[int, int]:
-    """Return (ahead, behind) counts vs upstream_ref. (0, 0) if no upstream."""
+    """返回相对于 upstream_ref 的 (领先数, 落后数)。无上游则返回 (0, 0)。"""
     if not upstream_ref:
         return 0, 0
     ahead = _revlist_count(repo_path, f"{upstream_ref}..HEAD")
@@ -126,7 +125,7 @@ def has_remote(repo_path: str, name: str) -> bool:
 
 
 def stage_all(repo_path: str) -> Tuple[int, str, str]:
-    """Stage all changes (including untracked and deletions)."""
+    """暂存所有改动(包含未跟踪文件和删除)。"""
     return run(repo_path, ["add", "--all"])
 
 
@@ -177,7 +176,7 @@ def pull(
     ff_only: bool = False,
     prune: bool = False,
 ) -> Tuple[int, str, str]:
-    """Integrate remote changes. Default: rebase. `ff_only` overrides rebase."""
+    """合并远端更新。默认用 rebase;`ff_only` 会覆盖 rebase 选项。"""
     args: List[str] = ["pull"]
     if ff_only:
         args.append("--ff-only")

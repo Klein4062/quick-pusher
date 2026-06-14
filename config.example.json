@@ -1,20 +1,18 @@
 {
-  // Repositories to operate on. Each entry is either a path string or an
-  // object with per-repo overrides. Paths may be relative or use ~.
+  // 要操作的仓库。每项既可以是路径字符串,也可以是带覆盖项的对象。路径可相对,也可用 ~。
   "repos": [
     "~/projects/repo-a",
     "../repo-b",
     { "path": "~/projects/repo-c", "remote": "github", "branch": "main" }
   ],
 
-  // Directories to scan for git repositories (recursively, up to scanDepth).
-  // May be a single string or a list.
+  // 要扫描的 git 仓库目录(递归扫描,最深 scanDepth 层)。可以是字符串,也可以是列表。
   "scan": "~/projects",
 
-  // Maximum depth when scanning. 1 = only direct children.
+  // 扫描时的最大深度。1 = 只看直接子目录。
   "scanDepth": 3,
 
-  // Defaults applied to every repo unless overridden per-repo or via CLI.
+  // 默认值,适用于所有仓库(除非被单个仓库覆盖,或被命令行覆盖)。
   "remote": "origin",
   "parallel": 4
 }
