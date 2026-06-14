@@ -1,0 +1,20 @@
+{
+  // Repositories to operate on. Each entry is either a path string or an
+  // object with per-repo overrides. Paths may be relative or use ~.
+  "repos": [
+    "~/projects/repo-a",
+    "../repo-b",
+    { "path": "~/projects/repo-c", "remote": "github", "branch": "main" }
+  ],
+
+  // Directories to scan for git repositories (recursively, up to scanDepth).
+  // May be a single string or a list.
+  "scan": "~/projects",
+
+  // Maximum depth when scanning. 1 = only direct children.
+  "scanDepth": 3,
+
+  // Defaults applied to every repo unless overridden per-repo or via CLI.
+  "remote": "origin",
+  "parallel": 4
+}
